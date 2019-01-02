@@ -14,9 +14,10 @@ import (
 	"errors"
 	"bytes"
 	"time"
-	"strconv"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/xml"
+	"strconv"
 )
 
 type BizMessage struct {
@@ -28,6 +29,25 @@ type BizMessage struct {
 	message.Message
 }
 
+type CDATA struct {
+	Text string `xml:",cdata"`
+}
+
+type ReceivedData struct {
+	XMLName      xml.Name `xml:"xml"`
+	ToUserName CDATA
+	Encrypt CDATA
+	AgentID CDATA
+}
+
+type ResponseData struct {
+	XMLName      xml.Name `xml:"xml"`
+	Encrypt CDATA
+	MsgSignature CDATA
+	TimeStamp int64
+	Nonce CDATA
+}
+
 func (m *BizMessage) Package(msg string) (string, error) {
 	msgEncrypt, err := m.Encrypt(msg, m.Key)
 	if err != nil {
@@ -37,12 +57,16 @@ func (m *BizMessage) Package(msg string) (string, error) {
 	timestamp := time.Now().Unix()
 	nonce := timestamp % 100000
 
-	return `<xml>
-   <Encrypt>` + msgEncrypt + `</Encrypt>
-   <MsgSignature>` + msgSignature + `</MsgSignature>
-   <TimeStamp>` + strconv.Itoa(int(timestamp)) + `</TimeStamp>
-   <Nonce>` + strconv.Itoa(int(nonce)) + `</Nonce>
-</xml>`, nil
+	response, err := xml.Marshal(ResponseData{
+		Encrypt: CDATA{msgEncrypt},
+		MsgSignature: CDATA{msgSignature},
+		TimeStamp: timestamp,
+		Nonce: CDATA{strconv.Itoa(int(nonce))},
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(response), nil
 }
 
 
@@ -128,9 +152,13 @@ func (m *BizMessage) Signature(data string) string {
 	return fmt.Sprintf("%x", s.Sum(nil))
 }
 
-func (m *BizMessage) Read() (string, error) {
-	// TODO: to be implemented
-	return "", nil
+func (m *BizMessage) Parse(data []byte) (interface{}, error) {
+	result := &ReceivedData{}
+	err := xml.Unmarshal(data, result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (m *BizMessage) PKCS7UnPadding(origData []byte) []byte {
