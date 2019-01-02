@@ -1,9 +1,26 @@
 package types
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+)
 
 type CDATA struct {
 	Text string `xml:",cdata"`
+}
+
+type ReceivedData struct {
+	XMLName      xml.Name `xml:"xml"`
+	ToUserName CDATA
+	Encrypt CDATA
+	AgentID CDATA
+}
+
+type ResponseData struct {
+	XMLName      xml.Name `xml:"xml"`
+	Encrypt CDATA
+	MsgSignature CDATA
+	TimeStamp int64
+	Nonce CDATA
 }
 
 type WxClickMessage struct {

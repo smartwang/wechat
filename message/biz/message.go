@@ -2,10 +2,7 @@ package biz
 
 import (
 	"github.com/smartwang/wechat/message"
-	"sort"
-	"crypto/sha1"
 	"io"
-	"strings"
 	"fmt"
 	"encoding/base64"
 	"crypto/aes"
@@ -13,10 +10,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"bytes"
-	"time"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/xml"
+	"github.com/smartwang/wechat/message/types"
+	"sort"
+	"crypto/sha1"
+	"strings"
+	"time"
 	"strconv"
 )
 
@@ -29,63 +30,27 @@ type BizMessage struct {
 	Key         string
 	message.Message
 }
-
-
-type CDATA struct {
-	Text string `xml:",cdata"`
+func (m *BizMessage) PKCS7UnPadding(origData []byte) []byte {
+	length := len(origData)
+	unpadding := int(origData[length-1])
+	return origData[:(length - unpadding)]
 }
 
-type ReceivedData struct {
-	XMLName      xml.Name `xml:"xml"`
-	ToUserName CDATA
-	Encrypt CDATA
-	AgentID CDATA
-}
-
-//type WxClickMessage struct {
-//	XMLName      xml.Name `xml:"xml"`
-//	FromUserName CDATA
-//}
-//
-//type WxTextMessage struct {
-//	XMLName      xml.Name `xml:"xml"`
-//	ToUserName CDATA
-//	FromUserName CDATA
-//	CreateTime int64
-//	MsgType CDATA
-//	Content CDATA
-//}
-
-type ResponseData struct {
-	XMLName      xml.Name `xml:"xml"`
-	Encrypt CDATA
-	MsgSignature CDATA
-	TimeStamp int64
-	Nonce CDATA
+func (m *BizMessage) PKCS7Padding(ciphertext []byte, blockSize int) []byte {
+	padding := blockSize - len(ciphertext)%blockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(ciphertext, padtext...)
 }
 
 
-func (m *BizMessage) PackageText(msg string) (string, error) {
-	msgEncrypt, err := m.Encrypt(msg, m.Key)
-	if err != nil {
-		return "", err
-	}
-	msgSignature := m.Signature(msgEncrypt)
-	timestamp := time.Now().Unix()
-	nonce := timestamp % 100000
-
-	response, err := xml.Marshal(ResponseData{
-		Encrypt: CDATA{msgEncrypt},
-		MsgSignature: CDATA{msgSignature},
-		TimeStamp: timestamp,
-		Nonce: CDATA{strconv.Itoa(int(nonce))},
-	})
-	if err != nil {
-		return "", err
-	}
-	return string(response), nil
+// Message Interface implement
+func (m *BizMessage) Signature(data string) string {
+	sl := []string{m.Token, m.Timestamp, m.Nonce, data}
+	sort.Strings(sl)
+	s := sha1.New()
+	io.WriteString(s, strings.Join(sl, ""))
+	return fmt.Sprintf("%x", s.Sum(nil))
 }
-
 
 // https://golang.org/src/crypto/cipher/example_test.go
 func (m *BizMessage) Encrypt(plantText, key string) (encryptText string, err error) {
@@ -161,16 +126,8 @@ func (m *BizMessage) VerifyURL(echoStr string) (string, error) {
 	return decryptedEchoStr, nil
 }
 
-func (m *BizMessage) Signature(data string) string {
-	sl := []string{m.Token, m.Timestamp, m.Nonce, data}
-	sort.Strings(sl)
-	s := sha1.New()
-	io.WriteString(s, strings.Join(sl, ""))
-	return fmt.Sprintf("%x", s.Sum(nil))
-}
-
 func (m *BizMessage) ParseRequest(data []byte) (interface{}, error) {
-	result := &ReceivedData{}
+	result := &types.ReceivedData{}
 	err := xml.Unmarshal(data, result)
 	if err != nil {
 		return nil, err
@@ -178,15 +135,44 @@ func (m *BizMessage) ParseRequest(data []byte) (interface{}, error) {
 	return result, nil
 }
 
-func (m *BizMessage) PKCS7UnPadding(origData []byte) []byte {
-	length := len(origData)
-	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
+func (m *BizMessage) HandleClick(encryptText string) (types.WxClickMessage, error) {
+	text, err := m.Decrypt(encryptText, m.Key)
+	if err != nil {
+		return types.WxClickMessage{}, err
+	}
+	result := types.WxClickMessage{}
+	err = xml.Unmarshal([]byte(text), result)
+	return result, err
 }
 
-func (m *BizMessage) PKCS7Padding(ciphertext []byte, blockSize int) []byte {
-	padding := blockSize - len(ciphertext)%blockSize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(ciphertext, padtext...)
+func (m *BizMessage) HandleText(encryptText string) (types.WxTextMessage, error) {
+	text, err := m.Decrypt(encryptText, m.Key)
+	if err != nil {
+		return types.WxTextMessage{}, err
+	}
+	result := types.WxTextMessage{}
+	err = xml.Unmarshal([]byte(text), result)
+	return result, err
+}
+
+func (m *BizMessage) PackageText(msg string) (string, error) {
+	msgEncrypt, err := m.Encrypt(msg, m.Key)
+	if err != nil {
+		return "", err
+	}
+	msgSignature := m.Signature(msgEncrypt)
+	timestamp := time.Now().Unix()
+	nonce := timestamp % 100000
+
+	response, err := xml.Marshal(types.ResponseData{
+		Encrypt: types.CDATA{msgEncrypt},
+		MsgSignature: types.CDATA{msgSignature},
+		TimeStamp: timestamp,
+		Nonce: types.CDATA{strconv.Itoa(int(nonce))},
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(response), nil
 }
 

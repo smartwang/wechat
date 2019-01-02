@@ -1,7 +1,6 @@
 package message
 
-import "encoding/xml"
-import "github.com/smartwang/wechat/types"
+import "github.com/smartwang/wechat/message/types"
 
 type Message interface {
 	Signature(data string) string
