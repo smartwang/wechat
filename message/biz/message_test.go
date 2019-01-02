@@ -8,16 +8,15 @@ import (
 var testMsg = &BizMessage{
 	CorpID: "wxtestaffbfc22fake",
 	Token: "abcdefg",
-	Timestamp: "1546408477",
-	Nonce: "1232",
 	SignatureIn: "7960dd476c4b4348c3529ecf9e6431b8eaf37cc7",
 	Key: "DF7TcyiKUDn81EejpSh3v3l4CmO7zvGaGkSYqmzTBz9",
 }
 
 var msgText = "hello world"
-
+var timestamp = "1546408477"
+var nonce = "1232"
 func TestSignature(t *testing.T) {
-	t.Log(testMsg.Signature(msgText))
+	t.Log(testMsg.Signature(timestamp, nonce, msgText))
 }
 
 func TestEncrypt(t *testing.T){
@@ -31,7 +30,7 @@ func TestEncrypt(t *testing.T){
 }
 
 func TestPackage(t *testing.T)  {
-	result, err := testMsg.PackageText(msgText)
+	result, err := testMsg.PackageText(msgText, "test")
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -39,7 +38,7 @@ func TestPackage(t *testing.T)  {
 }
 
 func TestVerifyUrl(t *testing.T) {
-	result, err := testMsg.VerifyURL("+Y5/ItU5iOFPn6OYzxVt8/wCjRUvWC1ZsIZtsG1e9sM=")
+	result, err := testMsg.VerifyURL(timestamp, nonce, "+Y5/ItU5iOFPn6OYzxVt8/wCjRUvWC1ZsIZtsG1e9sM=")
 	if err != nil {
 		t.Error(err.Error())
 	}
