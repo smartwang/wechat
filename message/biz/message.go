@@ -1,7 +1,7 @@
 package biz
 
 import (
-	"wechat/message"
+	"github.com/smartwang/wechat/message"
 	"sort"
 	"crypto/sha1"
 	"io"
