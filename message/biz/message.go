@@ -30,13 +30,6 @@ type BizMessage struct {
 	message.Message
 }
 
-func (m *BizMessage) HandleClick(encryptText string) (WxClickMessage, error) {
-	panic("implement me")
-}
-
-func (m *BizMessage) HandleText(encryptText string) (WxTextMessage, error) {
-	panic("implement me")
-}
 
 type CDATA struct {
 	Text string `xml:",cdata"`
@@ -73,9 +66,6 @@ type ResponseData struct {
 
 
 func (m *BizMessage) PackageText(msg string) (string, error) {
-	textMsg, err := xml.Marshal(WxTextMessage{
-
-	})
 	msgEncrypt, err := m.Encrypt(msg, m.Key)
 	if err != nil {
 		return "", err
