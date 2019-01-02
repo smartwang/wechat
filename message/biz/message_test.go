@@ -5,6 +5,7 @@ import (
 )
 
 var testMsg = &BizMessage{
+	CorpID: "wxtestaffbfc22fake",
 	Token: "abcdefg",
 	Timestamp: "1546408477",
 	Nonce: "1232",

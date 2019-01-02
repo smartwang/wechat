@@ -21,12 +21,21 @@ import (
 )
 
 type BizMessage struct {
+	CorpID		string
 	Token       string
 	Timestamp   string
 	Nonce       string
 	SignatureIn string
 	Key         string
 	message.Message
+}
+
+func (m *BizMessage) HandleClick(encryptText string) (WxClickMessage, error) {
+	panic("implement me")
+}
+
+func (m *BizMessage) HandleText(encryptText string) (WxTextMessage, error) {
+	panic("implement me")
 }
 
 type CDATA struct {
@@ -40,6 +49,20 @@ type ReceivedData struct {
 	AgentID CDATA
 }
 
+//type WxClickMessage struct {
+//	XMLName      xml.Name `xml:"xml"`
+//	FromUserName CDATA
+//}
+//
+//type WxTextMessage struct {
+//	XMLName      xml.Name `xml:"xml"`
+//	ToUserName CDATA
+//	FromUserName CDATA
+//	CreateTime int64
+//	MsgType CDATA
+//	Content CDATA
+//}
+
 type ResponseData struct {
 	XMLName      xml.Name `xml:"xml"`
 	Encrypt CDATA
@@ -48,7 +71,11 @@ type ResponseData struct {
 	Nonce CDATA
 }
 
-func (m *BizMessage) Package(msg string) (string, error) {
+
+func (m *BizMessage) PackageText(msg string) (string, error) {
+	textMsg, err := xml.Marshal(WxTextMessage{
+
+	})
 	msgEncrypt, err := m.Encrypt(msg, m.Key)
 	if err != nil {
 		return "", err
@@ -152,7 +179,7 @@ func (m *BizMessage) Signature(data string) string {
 	return fmt.Sprintf("%x", s.Sum(nil))
 }
 
-func (m *BizMessage) Parse(data []byte) (interface{}, error) {
+func (m *BizMessage) ParseRequest(data []byte) (interface{}, error) {
 	result := &ReceivedData{}
 	err := xml.Unmarshal(data, result)
 	if err != nil {
