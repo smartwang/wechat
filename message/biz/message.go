@@ -128,6 +128,11 @@ func (m *BizMessage) Signature(data string) string {
 	return fmt.Sprintf("%x", s.Sum(nil))
 }
 
+func (m *BizMessage) Read() (string, error) {
+	// TODO: to be implemented
+	return "", nil
+}
+
 func (m *BizMessage) PKCS7UnPadding(origData []byte) []byte {
 	length := len(origData)
 	unpadding := int(origData[length-1])
@@ -139,3 +144,4 @@ func (m *BizMessage) PKCS7Padding(ciphertext []byte, blockSize int) []byte {
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
+
