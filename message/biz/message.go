@@ -11,7 +11,6 @@ import (
 	"errors"
 	"bytes"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/xml"
 	"github.com/smartwang/wechat/message/types"
 	"sort"
@@ -23,10 +22,8 @@ import (
 
 type BizMessage struct {
 	CorpID		string
-	Token       string
-	Timestamp   string
-	Nonce       string
 	SignatureIn string
+	Token		string
 	Key         string
 	message.Message
 }
@@ -44,8 +41,8 @@ func (m *BizMessage) PKCS7Padding(ciphertext []byte, blockSize int) []byte {
 
 
 // Message Interface implement
-func (m *BizMessage) Signature(data string) string {
-	sl := []string{m.Token, m.Timestamp, m.Nonce, data}
+func (m *BizMessage) Signature(timestamp, nonce, data string) string {
+	sl := []string{m.Token, timestamp, nonce, data}
 	sort.Strings(sl)
 	s := sha1.New()
 	io.WriteString(s, strings.Join(sl, ""))
@@ -108,13 +105,13 @@ func (m *BizMessage) Decrypt(encryptText, key string) (plantText string, err err
 	data := m.PKCS7UnPadding(cipherText)
 	// 从dump下来的数据看，实际前4字节为长度，微信文档上说的似乎有误
 	length := int32(binary.BigEndian.Uint32(data[0:4]))
-	fmt.Println(hex.Dump(data))
+	//fmt.Println(hex.Dump(data))
 	msg := data[4 : 4+length]
 	return string(msg), nil
 }
 
-func (m *BizMessage) VerifyURL(echoStr string) (string, error) {
-	signatureGen := m.Signature(echoStr)
+func (m *BizMessage) VerifyURL(timestamp, nonce, echoStr string) (string, error) {
+	signatureGen := m.Signature(timestamp, nonce, echoStr)
 	fmt.Println(signatureGen)
 	if signatureGen != m.SignatureIn {
 		return "", errors.New("签名错误")
@@ -140,9 +137,9 @@ func (m *BizMessage) HandleClick(encryptText string) (types.WxClickMessage, erro
 	if err != nil {
 		return types.WxClickMessage{}, err
 	}
-	result := types.WxClickMessage{}
+	result := &types.WxClickMessage{}
 	err = xml.Unmarshal([]byte(text), result)
-	return result, err
+	return *result, err
 }
 
 func (m *BizMessage) HandleText(encryptText string) (types.WxTextMessage, error) {
@@ -150,20 +147,27 @@ func (m *BizMessage) HandleText(encryptText string) (types.WxTextMessage, error)
 	if err != nil {
 		return types.WxTextMessage{}, err
 	}
-	result := types.WxTextMessage{}
+	result := &types.WxTextMessage{}
 	err = xml.Unmarshal([]byte(text), result)
-	return result, err
+	return *result, err
 }
 
-func (m *BizMessage) PackageText(msg string) (string, error) {
-	msgEncrypt, err := m.Encrypt(msg, m.Key)
+func (m *BizMessage) PackageText(msg, toUser string) (string, error) {
+	textMsg, err := xml.Marshal(types.WxTextMessage{
+		FromUserName: types.CDATA{m.CorpID},
+		ToUserName: types.CDATA{toUser},
+		CreateTime: time.Now().Unix(),
+		MsgType: types.CDATA{"text"},
+		Content: types.CDATA{msg},
+	})
+	msgEncrypt, err := m.Encrypt(string(textMsg), m.Key)
 	if err != nil {
 		return "", err
 	}
-	msgSignature := m.Signature(msgEncrypt)
+
 	timestamp := time.Now().Unix()
 	nonce := timestamp % 100000
-
+	msgSignature := m.Signature(strconv.Itoa(int(timestamp)), strconv.Itoa(int(nonce)), msgEncrypt)
 	response, err := xml.Marshal(types.ResponseData{
 		Encrypt: types.CDATA{msgEncrypt},
 		MsgSignature: types.CDATA{msgSignature},
