@@ -1,32 +1,34 @@
 package biz
 
 import (
-	"github.com/smartwang/wechat/message"
-	"io"
-	"fmt"
-	"encoding/base64"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/binary"
-	"errors"
-	"bytes"
 	"crypto/rand"
-	"encoding/xml"
-	"github.com/smartwang/wechat/message/types"
-	"sort"
 	"crypto/sha1"
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
+
+	"github.com/smartwang/wechat/message"
+	"github.com/smartwang/wechat/message/types"
 )
 
 type BizMessage struct {
-	CorpID		string
+	CorpID      string
 	SignatureIn string
-	Token		string
+	Token       string
 	Key         string
 	message.Message
 }
+
 func (m *BizMessage) PKCS7UnPadding(origData []byte) []byte {
 	length := len(origData)
 	unpadding := int(origData[length-1])
@@ -38,7 +40,6 @@ func (m *BizMessage) PKCS7Padding(ciphertext []byte, blockSize int) []byte {
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
-
 
 // Message Interface implement
 func (m *BizMessage) Signature(timestamp, nonce, data string) string {
@@ -68,7 +69,7 @@ func (m *BizMessage) Encrypt(plantText, key string) (encryptText string, err err
 		[]byte(plantText),
 	}
 	padText := m.PKCS7Padding(bytes.Join(s, []byte("")), block.BlockSize())
-	cipherText := make([]byte, aes.BlockSize + len(padText))
+	cipherText := make([]byte, aes.BlockSize+len(padText))
 
 	iv := cipherText[:aes.BlockSize]
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
@@ -155,10 +156,10 @@ func (m *BizMessage) HandleText(encryptText string) (types.WxTextMessage, error)
 func (m *BizMessage) PackageText(msg, toUser string) (string, error) {
 	textMsg, err := xml.Marshal(types.WxTextMessage{
 		FromUserName: types.CDATA{m.CorpID},
-		ToUserName: types.CDATA{toUser},
-		CreateTime: time.Now().Unix(),
-		MsgType: types.CDATA{"text"},
-		Content: types.CDATA{msg},
+		ToUserName:   types.CDATA{toUser},
+		CreateTime:   time.Now().Unix(),
+		MsgType:      types.CDATA{"text"},
+		Content:      types.CDATA{msg},
 	})
 	msgEncrypt, err := m.Encrypt(string(textMsg), m.Key)
 	if err != nil {
@@ -169,14 +170,13 @@ func (m *BizMessage) PackageText(msg, toUser string) (string, error) {
 	nonce := timestamp % 100000
 	msgSignature := m.Signature(strconv.Itoa(int(timestamp)), strconv.Itoa(int(nonce)), msgEncrypt)
 	response, err := xml.Marshal(types.ResponseData{
-		Encrypt: types.CDATA{msgEncrypt},
+		Encrypt:      types.CDATA{msgEncrypt},
 		MsgSignature: types.CDATA{msgSignature},
-		TimeStamp: timestamp,
-		Nonce: types.CDATA{strconv.Itoa(int(nonce))},
+		TimeStamp:    timestamp,
+		Nonce:        types.CDATA{strconv.Itoa(int(nonce))},
 	})
 	if err != nil {
 		return "", err
 	}
 	return string(response), nil
 }
-
